@@ -1,0 +1,54 @@
+{
+  "name": "enerlia-auth-secure",
+  "version": "0.1.0",
+  "description": "Plugins Better Auth qui appliquent le référentiel Enerlia « Sécurité des comptes et des connexions ».",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Enerlia/enerlia-auth-secure.git"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./session": {
+      "types": "./dist/session.d.ts",
+      "import": "./dist/session.js"
+    },
+    "./tentatives": {
+      "types": "./dist/tentatives.d.ts",
+      "import": "./dist/tentatives.js"
+    },
+    "./mot-de-passe": {
+      "types": "./dist/mot-de-passe.d.ts",
+      "import": "./dist/mot-de-passe.js"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "tsc --noEmit && vitest run && tsup"
+  },
+  "peerDependencies": {
+    "better-auth": ">=1.6.15 <2"
+  },
+  "devDependencies": {
+    "@better-auth/utils": "*",
+    "@types/node": "^26.6.5",
+    "better-auth": "1.6.33",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  }
+}
