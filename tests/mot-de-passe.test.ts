@@ -25,20 +25,20 @@ afterEach(() => vi.unstubAllGlobals());
 describe("règles de mot de passe : contrôles locaux", () => {
   const infos = { email: "alice.martin@exemple.fr", nom: "Alice Martin", application: "Adeho Solutions" };
   it.each([
-    ["onzelettres", "MOT_DE_PASSE_TROP_COURT"],
+    ["treizelettres", "MOT_DE_PASSE_TROP_COURT"],
     ["x".repeat(129), "MOT_DE_PASSE_TROP_LONG"],
     ["un soleil radieux 🌞 ici", "MOT_DE_PASSE_EMOJI"],
-    ["motdepasse123", "MOT_DE_PASSE_COURANT"],
+    ["motdepasse1234", "MOT_DE_PASSE_COURANT"],
     ["azertyuiopqsdf", "MOT_DE_PASSE_COURANT"],
-    ["abababababab", "MOT_DE_PASSE_COURANT"],
+    ["ababababababab", "MOT_DE_PASSE_COURANT"],
     ["martin et son chien", "MOT_DE_PASSE_PERSONNEL"],
     ["alice.martin2026!", "MOT_DE_PASSE_PERSONNEL"],
     ["j'aime adeho depuis toujours", "MOT_DE_PASSE_PERSONNEL"],
   ])("refuse « %s »", (mdp, code) => {
     expect(verifierMotDePasse(mdp, infos)).toBe(code);
   });
-  it("accepte 12 minuscules sans règle de composition, et les accents", () => {
-    expect(verifierMotDePasse("cheval agrafe", infos)).toBeNull();
+  it("accepte 14 minuscules sans règle de composition, et les accents", () => {
+    expect(verifierMotDePasse("cheval agrafeur", infos)).toBeNull();
     expect(verifierMotDePasse("été à la campagne", infos)).toBeNull();
   });
 });
@@ -53,7 +53,7 @@ describe("règles de mot de passe : de bout en bout avec Better Auth", () => {
     expect(await resultat(inscrire(auth, "trop court"))).toBe("400 MOT_DE_PASSE_TROP_COURT");
     expect(await resultat(inscrire(auth, "martin pour toujours"))).toBe("400 MOT_DE_PASSE_PERSONNEL");
     expect(await resultat(inscrire(auth, "application test 2026"))).toBe("400 MOT_DE_PASSE_PERSONNEL");
-    expect(await resultat(inscrire(auth, "cheval agrafe"))).toBe("ok");
+    expect(await resultat(inscrire(auth, "cheval agrafeur"))).toBe("ok");
   });
 
   it("refuse un mot de passe présent dans une fuite connue, sans l'envoyer en clair", async () => {
@@ -66,8 +66,8 @@ describe("règles de mot de passe : de bout en bout avec Better Auth", () => {
   it("accepte quand le service Pwned Passwords est indisponible (liste locale appliquée)", async () => {
     simulerPwned([], true);
     const auth = creerAuth(nouvelleBase(), { plugins: [motDePasseEnerlia()] });
-    expect(await resultat(inscrire(auth, "motdepasse123"))).toBe("400 MOT_DE_PASSE_COURANT");
-    expect(await resultat(inscrire(auth, "cheval agrafe"))).toBe("ok");
+    expect(await resultat(inscrire(auth, "motdepasse1234"))).toBe("400 MOT_DE_PASSE_COURANT");
+    expect(await resultat(inscrire(auth, "cheval agrafeur"))).toBe("ok");
   });
 
   it("reconnaît un mot de passe accentué saisi sous une autre forme Unicode", async () => {

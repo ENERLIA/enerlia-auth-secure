@@ -8,7 +8,7 @@ export { CodeRefusMotDePasse, MESSAGES_MOT_DE_PASSE, ROUTES_MOT_DE_PASSE, RouteM
 
 /**
  * Mots de passe courants refusés même quand le service Pwned Passwords ne
- * répond pas. La liste vise les mots de passe d'au moins 12 caractères (les
+ * répond pas. La liste vise les mots de passe de 12 caractères et plus (les
  * plus courts sont déjà refusés par la longueur) ; les suites et répétitions
  * sont détectées à part dans `estMotDePasseCourant`.
  */

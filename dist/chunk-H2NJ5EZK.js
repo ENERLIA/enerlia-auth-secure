@@ -146,7 +146,7 @@ function fragmentsPersonnels(infos) {
 function verifierMotDePasse(motDePasse, infos = {}, options = {}) {
   const normalise = motDePasse.normalize("NFC");
   const longueur = [...normalise].length;
-  if (longueur < (options.longueurMin ?? 12)) return "MOT_DE_PASSE_TROP_COURT";
+  if (longueur < (options.longueurMin ?? 14)) return "MOT_DE_PASSE_TROP_COURT";
   if (longueur > (options.longueurMax ?? 128)) return "MOT_DE_PASSE_TROP_LONG";
   if (EMOJI.test(normalise)) return "MOT_DE_PASSE_EMOJI";
   const liste = options.motsInterdits?.length ? [...MOTS_DE_PASSE_COURANTS, ...options.motsInterdits.map((m) => m.toLowerCase())] : MOTS_DE_PASSE_COURANTS;
@@ -228,7 +228,7 @@ var motDePasseEnerlia = (options = {}) => {
               options
             );
             if (!refus) return;
-            const message = refus === "MOT_DE_PASSE_TROP_COURT" ? MESSAGES_MOT_DE_PASSE.MOT_DE_PASSE_TROP_COURT(options.longueurMin ?? 12) : refus === "MOT_DE_PASSE_TROP_LONG" ? MESSAGES_MOT_DE_PASSE.MOT_DE_PASSE_TROP_LONG(options.longueurMax ?? 128) : MESSAGES_MOT_DE_PASSE[refus];
+            const message = refus === "MOT_DE_PASSE_TROP_COURT" ? MESSAGES_MOT_DE_PASSE.MOT_DE_PASSE_TROP_COURT(options.longueurMin ?? 14) : refus === "MOT_DE_PASSE_TROP_LONG" ? MESSAGES_MOT_DE_PASSE.MOT_DE_PASSE_TROP_LONG(options.longueurMax ?? 128) : MESSAGES_MOT_DE_PASSE[refus];
             throw new APIError("BAD_REQUEST", { message, code: refus });
           })
         }

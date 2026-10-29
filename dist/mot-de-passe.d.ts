@@ -3,7 +3,7 @@ import * as better_call from 'better-call';
 /**
  * Règles de mot de passe du référentiel Enerlia « Sécurité des comptes et des
  * connexions » v2.0, section 1 :
- * - 12 à 128 caractères, sans règle de composition imposée ;
+ * - 14 à 128 caractères, sans règle de composition imposée ;
  * - émojis refusés, caractères accentués normalisés (Unicode NFC) avant le hachage ;
  * - refus des mots de passe courants, de ceux qui contiennent l'e-mail, le nom
  *   de l'utilisateur ou le nom de l'application ;
@@ -23,7 +23,7 @@ type RouteMotDePasse = {
 type OptionsMotDePasse = {
     /** Nom de l'application, refusé dans le mot de passe. Par défaut : `appName` de Better Auth. */
     nomApplication?: string;
-    /** Longueur minimale, en caractères. 12 par défaut. */
+    /** Longueur minimale, en caractères. 14 par défaut. */
     longueurMin?: number;
     /** Longueur maximale, en caractères. 128 par défaut. */
     longueurMax?: number;

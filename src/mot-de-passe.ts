@@ -7,7 +7,7 @@ import { MOTS_DE_PASSE_COURANTS, estMotDePasseCourant } from "./mots-de-passe-co
 /**
  * Règles de mot de passe du référentiel Enerlia « Sécurité des comptes et des
  * connexions » v2.0, section 1 :
- * - 12 à 128 caractères, sans règle de composition imposée ;
+ * - 14 à 128 caractères, sans règle de composition imposée ;
  * - émojis refusés, caractères accentués normalisés (Unicode NFC) avant le hachage ;
  * - refus des mots de passe courants, de ceux qui contiennent l'e-mail, le nom
  *   de l'utilisateur ou le nom de l'application ;
@@ -29,7 +29,7 @@ export type RouteMotDePasse = {
 export type OptionsMotDePasse = {
   /** Nom de l'application, refusé dans le mot de passe. Par défaut : `appName` de Better Auth. */
   nomApplication?: string;
-  /** Longueur minimale, en caractères. 12 par défaut. */
+  /** Longueur minimale, en caractères. 14 par défaut. */
   longueurMin?: number;
   /** Longueur maximale, en caractères. 128 par défaut. */
   longueurMax?: number;
@@ -94,7 +94,7 @@ export function verifierMotDePasse(
 ): CodeRefusMotDePasse | null {
   const normalise = motDePasse.normalize("NFC");
   const longueur = [...normalise].length;
-  if (longueur < (options.longueurMin ?? 12)) return "MOT_DE_PASSE_TROP_COURT";
+  if (longueur < (options.longueurMin ?? 14)) return "MOT_DE_PASSE_TROP_COURT";
   if (longueur > (options.longueurMax ?? 128)) return "MOT_DE_PASSE_TROP_LONG";
   if (EMOJI.test(normalise)) return "MOT_DE_PASSE_EMOJI";
   const liste = options.motsInterdits?.length
@@ -210,7 +210,7 @@ export const motDePasseEnerlia = (options: OptionsMotDePasse = {}) => {
             if (!refus) return;
             const message =
               refus === "MOT_DE_PASSE_TROP_COURT"
-                ? MESSAGES_MOT_DE_PASSE.MOT_DE_PASSE_TROP_COURT(options.longueurMin ?? 12)
+                ? MESSAGES_MOT_DE_PASSE.MOT_DE_PASSE_TROP_COURT(options.longueurMin ?? 14)
                 : refus === "MOT_DE_PASSE_TROP_LONG"
                   ? MESSAGES_MOT_DE_PASSE.MOT_DE_PASSE_TROP_LONG(options.longueurMax ?? 128)
                   : MESSAGES_MOT_DE_PASSE[refus];
