@@ -1,6 +1,6 @@
 {
   "name": "enerlia-auth-secure",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Plugins Better Auth qui appliquent le référentiel Enerlia « Sécurité des comptes et des connexions ».",
   "private": true,
   "type": "module",
@@ -31,6 +31,10 @@
     "./mot-de-passe": {
       "types": "./dist/mot-de-passe.d.ts",
       "import": "./dist/mot-de-passe.js"
+    },
+    "./envois-email": {
+      "types": "./dist/envois-email.d.ts",
+      "import": "./dist/envois-email.js"
     }
   },
   "sideEffects": false,

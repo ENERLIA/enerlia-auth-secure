@@ -2,9 +2,12 @@ import * as better_call from 'better-call';
 import { OptionsDureeSession } from './session.js';
 export { SESSION_DUREE_MAX_MS, SESSION_INACTIVITE_S, SESSION_PROLONGATION_S, creerLimiteDureeSession, dureeSessionEnerlia, limiterDureeSession, plafonnerExpiration, sessionEnerlia } from './session.js';
 import { OptionsTentatives } from './tentatives.js';
-export { EtatTentatives, MESSAGE_COMPTE_BLOQUE, MESSAGE_DELAI, MESSAGE_RESEAU_BLOQUE, MODELE_TENTATIVE, StockageTentatives, apresEchec, apresEchecIp, attenteIp, cle2fa, cleIp, cleMotDePasse, delaiAvantEssai, refusAvantEssai, stockageMemoire, tentativesEnerlia } from './tentatives.js';
+export { MESSAGE_COMPTE_BLOQUE, MESSAGE_DELAI, apresEchec, cle2fa, cleMotDePasse, delaiAvantEssai, refusAvantEssai, tentativesEnerlia } from './tentatives.js';
 import { OptionsMotDePasse } from './mot-de-passe.js';
 export { CodeRefusMotDePasse, MESSAGES_MOT_DE_PASSE, ROUTES_MOT_DE_PASSE, RouteMotDePasse, fragmentsPersonnels, motDePasseEnerlia, verifierMotDePasse } from './mot-de-passe.js';
+import { OptionsEnvoisEmail } from './envois-email.js';
+export { MESSAGE_TROP_DE_DEMANDES, ROUTES_ENVOI_EMAIL, RouteEnvoiEmail, cleEnvoi2fa, cleEnvoiEmail, compterDemande, envoisEmailEnerlia } from './envois-email.js';
+export { E as EtatTentatives, M as MODELE_TENTATIVE, S as StockageTentatives, s as stockageMemoire } from './stockage-Cl_cWT5_.js';
 
 /**
  * Mots de passe courants refusés même quand le service Pwned Passwords ne
@@ -20,6 +23,7 @@ type OptionsSecuriteEnerlia = {
     session?: OptionsDureeSession | false;
     tentatives?: OptionsTentatives | false;
     motDePasse?: OptionsMotDePasse | false;
+    envoisEmail?: OptionsEnvoisEmail | false;
 };
 /**
  * Tous les plugins du référentiel Enerlia, à étaler dans `plugins` :
@@ -47,24 +51,24 @@ declare function securiteEnerlia(options?: OptionsSecuriteEnerlia): ({
     };
 } | {
     schema?: {
-        enerliaTentative: {
-            fields: {
-                cle: {
-                    type: "string";
-                    required: true;
-                    unique: true;
+        readonly enerliaTentative: {
+            readonly fields: {
+                readonly cle: {
+                    readonly type: "string";
+                    readonly required: true;
+                    readonly unique: true;
                 };
-                echecs: {
-                    type: "number";
-                    required: true;
+                readonly echecs: {
+                    readonly type: "number";
+                    readonly required: true;
                 };
-                dernierEchec: {
-                    type: "number";
-                    required: true;
+                readonly dernierEchec: {
+                    readonly type: "number";
+                    readonly required: true;
                 };
-                bloqueJusqua: {
-                    type: "number";
-                    required: true;
+                readonly bloqueJusqua: {
+                    readonly type: "number";
+                    readonly required: true;
                 };
             };
         };
@@ -115,6 +119,39 @@ declare function securiteEnerlia(options?: OptionsSecuriteEnerlia): ({
             handler: better_call.Middleware<better_call.MiddlewareOptions, (inputContext: better_call.MiddlewareInputContext<better_call.MiddlewareOptions>) => Promise<void>>;
         }[];
     };
+} | {
+    schema?: {
+        readonly enerliaTentative: {
+            readonly fields: {
+                readonly cle: {
+                    readonly type: "string";
+                    readonly required: true;
+                    readonly unique: true;
+                };
+                readonly echecs: {
+                    readonly type: "number";
+                    readonly required: true;
+                };
+                readonly dernierEchec: {
+                    readonly type: "number";
+                    readonly required: true;
+                };
+                readonly bloqueJusqua: {
+                    readonly type: "number";
+                    readonly required: true;
+                };
+            };
+        };
+    } | undefined;
+    id: "enerlia-envois-email";
+    hooks: {
+        before: {
+            matcher: (ctx: {
+                path?: string;
+            }) => boolean;
+            handler: better_call.Middleware<better_call.MiddlewareOptions, (inputContext: better_call.MiddlewareInputContext<better_call.MiddlewareOptions>) => Promise<void>>;
+        }[];
+    };
 })[];
 
-export { MOTS_DE_PASSE_COURANTS, OptionsDureeSession, OptionsMotDePasse, type OptionsSecuriteEnerlia, OptionsTentatives, estMotDePasseCourant, securiteEnerlia };
+export { MOTS_DE_PASSE_COURANTS, OptionsDureeSession, OptionsEnvoisEmail, OptionsMotDePasse, type OptionsSecuriteEnerlia, OptionsTentatives, estMotDePasseCourant, securiteEnerlia };

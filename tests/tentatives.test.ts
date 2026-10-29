@@ -4,8 +4,6 @@ import { twoFactor } from "better-auth/plugins/two-factor";
 import { describe, expect, it } from "vitest";
 import {
   apresEchec,
-  apresEchecIp,
-  attenteIp,
   delaiAvantEssai,
   refusAvantEssai,
   stockageMemoire,
@@ -40,13 +38,6 @@ describe("tentatives : calcul", () => {
     expect(refusAvantEssai({ echecs: 10, dernierEchec: 0, bloqueJusqua: 10 }, 5)?.raison).toBe("bloque");
     expect(refusAvantEssai({ echecs: 4, dernierEchec: 1000, bloqueJusqua: 0 }, 2000)?.raison).toBe("delai");
     expect(refusAvantEssai({ echecs: 4, dernierEchec: 1000, bloqueJusqua: 0 }, 3500)).toBeNull();
-  });
-  it("compte les échecs par IP sur une fenêtre fixe de 15 minutes", () => {
-    let etat = null;
-    for (let i = 0; i < 50; i++) etat = apresEchecIp(etat, 1000 + i);
-    expect(attenteIp(etat, 2000)).toBe(1000 + 15 * MIN - 2000);
-    expect(attenteIp(etat, 1000 + 15 * MIN)).toBe(0);
-    expect(apresEchecIp(etat, 1000 + 15 * MIN).echecs).toBe(1);
   });
 });
 
@@ -112,31 +103,21 @@ describe("tentatives : mot de passe, de bout en bout", () => {
     expect(await resultat(connexion(auth, "collegue@exemple.fr", MDP, "198.51.100.7"))).toBe("ok");
   });
 
-  it("bloque une adresse IP après 50 échecs sur des comptes différents, sans toucher les autres adresses", async () => {
-    const auth = creerAuth(nouvelleBase(), { plugins: [tentativesEnerlia({ delaiInitialMs: 0 })] });
+  it("ne bloque aucune adresse IP, même après de nombreux échecs sur des comptes différents", async () => {
+    const stockage = stockageMemoire();
+    const auth = creerAuth(nouvelleBase(), { plugins: [tentativesEnerlia({ stockage, delaiInitialMs: 0 })] });
     await auth.api.signUpEmail({ body: { email: "alice@exemple.fr", password: MDP, name: "Alice" } });
-    for (let i = 0; i < 50; i++)
+    for (let i = 0; i < 80; i++)
       expect(await resultat(connexion(auth, `cible${i}@exemple.fr`, "motdepasse123", "192.0.2.66"))).toBe("401 INVALID_EMAIL_OR_PASSWORD");
-    expect(await resultat(connexion(auth, "alice@exemple.fr", MDP, "192.0.2.66"))).toBe("429 TROP_D_ECHECS_DEPUIS_CE_RESEAU");
-    expect(await resultat(connexion(auth, "alice@exemple.fr", MDP, "192.0.2.99"))).toBe("ok");
+    expect(await resultat(connexion(auth, "alice@exemple.fr", MDP, "192.0.2.66"))).toBe("ok");
+    expect([...stockage.donnees.keys()].some((cle) => cle.startsWith("ip:"))).toBe(false);
   });
 
-  it("une connexion réussie ne compte pas comme un échec pour l'adresse IP", async () => {
-    const stockage = stockageMemoire();
-    const auth = creerAuth(nouvelleBase(), { plugins: [tentativesEnerlia({ stockage })] });
-    await auth.api.signUpEmail({ body: { email: "alice@exemple.fr", password: MDP, name: "Alice" } });
-    for (let i = 0; i < 60; i++) expect(await resultat(connexion(auth, "alice@exemple.fr", MDP, "192.0.2.10"))).toBe("ok");
-    expect(stockage.donnees.has("ip:192.0.2.10")).toBe(false);
-  });
-
-  it("ne regroupe jamais les visiteurs dont l'adresse IP est inconnue", async () => {
-    const stockage = stockageMemoire();
-    const auth = creerAuth(nouvelleBase(), {
-      advanced: { ipAddress: { disableIpTracking: true } },
-      plugins: [tentativesEnerlia({ stockage })],
-    });
-    await resultat(connexion(auth, "inconnu@exemple.fr", MDP));
-    expect([...stockage.donnees.keys()]).toEqual(["mdp:inconnu@exemple.fr"]);
+  it("le compteur suit le compte même quand l'attaquant change d'adresse IP", async () => {
+    const auth = creerAuth(nouvelleBase(), { plugins: [tentativesEnerlia({ delaiInitialMs: 0 })] });
+    await auth.api.signUpEmail({ body: { email: "max@exemple.fr", password: MDP, name: "Max" } });
+    for (let i = 0; i < 10; i++) await resultat(connexion(auth, "max@exemple.fr", "mauvais mot de passe", `198.51.100.${i + 1}`));
+    expect(await resultat(connexion(auth, "max@exemple.fr", MDP, "203.0.113.200"))).toBe("429 COMPTE_TEMPORAIREMENT_BLOQUE");
   });
 });
 

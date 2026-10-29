@@ -2,7 +2,7 @@ import * as better_call from 'better-call';
 
 /**
  * Règles de mot de passe du référentiel Enerlia « Sécurité des comptes et des
- * connexions » v2.0, section 1 :
+ * connexions » v2.3, section 1 :
  * - 14 à 128 caractères, sans règle de composition imposée ;
  * - émojis refusés, caractères accentués normalisés (Unicode NFC) avant le hachage ;
  * - refus des mots de passe courants, de ceux qui contiennent l'e-mail, le nom

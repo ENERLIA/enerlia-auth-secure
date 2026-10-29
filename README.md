@@ -1,26 +1,27 @@
 # enerlia-auth-secure
 
-Plugins [Better Auth](https://www.better-auth.com) qui appliquent le référentiel Enerlia « Sécurité des comptes et des connexions » (v2.2 du 29 octobre 2026). Ils fonctionnent avec toute app Better Auth, qu’elle tourne sous Next.js, TanStack Start, Bun ou Convex.
+Plugins [Better Auth](https://www.better-auth.com) qui appliquent le référentiel Enerlia « Sécurité des comptes et des connexions » (v2.3 du 29 octobre 2026). Ils fonctionnent avec toute app Better Auth, qu’elle tourne sous Next.js, TanStack Start, Bun ou Convex.
 
 | Plugin | Règle du référentiel | Ce qu’il fait |
 |---|---|---|
 | `dureeSessionEnerlia` | §5 Session | Plafonne chaque session à 7 jours après la connexion. Avec `session: sessionEnerlia`, la session expire aussi après 48 h sans activité. |
-| `tentativesEnerlia` | §3 Force brute | Compteur d’échecs par compte, pour le mot de passe et les codes 2FA : délai croissant dès le 3e échec, blocage de 15 min au 10e, déblocage par un nouveau mot de passe. Le blocage ne touche que le compte visé. Limite par adresse IP sur les seuls échecs : 50 en 15 minutes, tous comptes confondus. |
+| `tentativesEnerlia` | §3 Force brute | Compteur d’échecs par compte, pour le mot de passe et les codes 2FA : délai croissant dès le 3e échec, blocage de 15 min au 10e, déblocage par un nouveau mot de passe. Aucun blocage par adresse IP : seul le compte visé est bloqué. |
+| `envoisEmailEnerlia` | §3 Envois d’e-mails | Au plus 3 demandes de lien ou de code par e-mail en 10 minutes pour une même adresse (mot de passe oublié, code par e-mail, code 2FA, lien de connexion, routes de l’app comme le renvoi d’invitation). |
 | `motDePasseEnerlia` | §1 Mot de passe | 14 à 128 caractères sans composition imposée, émojis refusés, accents normalisés, refus des mots de passe courants ou contenant l’e-mail, le nom ou le nom de l’app, contrôle des fuites avec le plugin officiel `haveIBeenPwned` et liste locale si le service ne répond pas. |
 
 Testé avec Better Auth 1.6.15 et 1.6.33.
 
 ## Installation
 
-Le paquet est privé. Il s’installe depuis GitHub, à une version précise :
+Le dépôt est public : l’installation depuis GitHub ne demande aucun jeton, en local comme dans la CI ou sur Dokploy. Toujours installer une version précise :
 
 ```bash
-bun add github:Enerlia/enerlia-auth-secure#v0.3.0
+bun add github:ENERLIA/enerlia-auth-secure#v0.4.0
 # ou
-npm install github:Enerlia/enerlia-auth-secure#v0.3.0
+npm install github:ENERLIA/enerlia-auth-secure#v0.4.0
 ```
 
-Le build de l’app (CI, Dokploy) doit pouvoir lire ce dépôt privé, par exemple avec un jeton GitHub en lecture seule.
+Le fichier de verrouillage (`bun.lock`, `package-lock.json`) retient le commit exact du tag. Le build de l’app installe donc toujours le même code.
 
 ## Utilisation
 
@@ -31,32 +32,39 @@ import { securiteEnerlia, sessionEnerlia } from "enerlia-auth-secure";
 
 export const auth = betterAuth({
   appName: "Nom de l’application", // refusé dans les mots de passe
-  session: sessionEnerlia, // 48 h sans activité, prolongée au plus une fois par heure
-  emailAndPassword: { enabled: true, minPasswordLength: 14, maxPasswordLength: 128 },
-  // Limite de Better Auth : elle compte toutes les requêtes par adresse IP, réussies comme
-  // échouées. La garder large pour ne pas bloquer un bureau entier derrière la même adresse.
-  rateLimit: {
-    enabled: true,
-    storage: "database",
-    customRules: {
-      "/sign-in/email": { window: 60, max: 30 },
-      "/two-factor/*": { window: 60, max: 30 },
-    },
+  session: {
+    ...sessionEnerlia, // 48 h sans activité, prolongée au plus une fois par heure
+    freshAge: 10 * 60, // réauthentification au-delà de 10 minutes (§6)
+    cookieCache: { enabled: true, maxAge: 5 * 60 }, // révocation prise en compte en 5 min maximum
   },
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: 14,
+    maxPasswordLength: 128,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
+  },
+  // Aucun blocage par adresse IP (§3) : la limite de Better Auth compte par IP et
+  // bloquerait tous les collègues d’un même bureau. Les plugins Enerlia comptent par compte.
+  rateLimit: { enabled: false },
+  advanced: { useSecureCookies: true },
   plugins: [
     ...securiteEnerlia(),
-    twoFactor(),
+    twoFactor({
+      otpOptions: { period: 10, storeOTP: "hashed" },
+      backupCodeOptions: { amount: 10, storeBackupCodes: "encrypted" },
+    }),
   ],
 });
 ```
 
-Chaque plugin peut aussi être ajouté seul : `dureeSessionEnerlia()`, `tentativesEnerlia()`, `motDePasseEnerlia()`.
+Chaque plugin peut aussi être ajouté seul : `dureeSessionEnerlia()`, `tentativesEnerlia()`, `envoisEmailEnerlia()`, `motDePasseEnerlia()`. Pour en retirer un de `securiteEnerlia`, passer `false` : `securiteEnerlia({ envoisEmail: false })`.
 
-### Stockage du compteur de tentatives
+### Stockage des compteurs
 
-Par défaut, `tentativesEnerlia` ajoute la table `enerliaTentative` à la base Better Auth. Il faut alors régénérer le schéma (`npx @better-auth/cli generate`, ou le schéma du composant Better Auth installé en local dans Convex).
+`tentativesEnerlia` et `envoisEmailEnerlia` partagent la table `enerliaTentative`, ajoutée par défaut à la base Better Auth. Il faut alors régénérer le schéma (`npx @better-auth/cli generate`, ou le schéma du composant Better Auth installé en local dans Convex).
 
-Avec le composant `@convex-dev/better-auth` utilisé tel quel, on ne peut pas ajouter de table. Fournir alors un stockage qui écrit dans une table de l’app :
+Avec le composant `@convex-dev/better-auth` utilisé tel quel, on ne peut pas ajouter de table. Fournir alors un stockage qui écrit dans une table de l’app, et le passer aux deux plugins :
 
 ```ts
 // convex/schema.ts
@@ -68,37 +76,65 @@ tentativesConnexion: defineTable({
 }).index("par_cle", ["cle"]),
 
 // convex/auth.ts, dans createAuth(ctx)
-tentativesEnerlia({
-  stockage: {
-    lire: (cle) => ctx.runQuery(internal.tentatives.lire, { cle }),
-    ecrire: (cle, etat) => ctx.runMutation(internal.tentatives.ecrire, { cle, ...etat }),
-    effacer: (cle) => ctx.runMutation(internal.tentatives.effacer, { cle }),
-  },
-}),
+const stockage = {
+  lire: (cle) => ctx.runQuery(internal.tentatives.lire, { cle }),
+  ecrire: (cle, etat) => ctx.runMutation(internal.tentatives.ecrire, { cle, ...etat }),
+  effacer: (cle) => ctx.runMutation(internal.tentatives.effacer, { cle }),
+};
+// …
+plugins: [...securiteEnerlia({ tentatives: { stockage }, envoisEmail: { stockage } })],
 ```
+
+Les clés ne se mélangent pas : `mdp:` et `2fa:` pour les échecs, `envoi:` et `envoi-2fa:` pour les e-mails.
 
 ### Routes propres à l’app
 
-`motDePasseEnerlia` contrôle les routes Better Auth où l’on choisit un mot de passe (inscription, changement, réinitialisation, création par un administrateur). Si l’app a ses propres routes, par exemple l’activation d’une invitation, il faut les déclarer :
+`motDePasseEnerlia` contrôle les routes Better Auth où l’on choisit un mot de passe. `envoisEmailEnerlia` limite les routes Better Auth qui envoient un lien ou un code. Si l’app a ses propres routes, il faut les déclarer :
 
 ```ts
-motDePasseEnerlia({
-  routesSupplementaires: [{ chemin: "/invitation/activate-password", champ: "password" }],
+securiteEnerlia({
+  motDePasse: { routesSupplementaires: [{ chemin: "/invitation/activate-password", champ: "password" }] },
+  envoisEmail: { routesSupplementaires: [{ chemin: "/invitation/resend", champ: "email" }] },
 });
 ```
 
+Une route d’envoi qui n’est pas une route Better Auth (mutation Convex, action serveur) n’est pas couverte : appliquer la même règle dans l’app, avec `compterDemande` exportée par le paquet.
+
+## Ce que Better Auth fait déjà, à régler dans l’app
+
+Ces règles du référentiel existent dans Better Auth, mais ses réglages par défaut ne sont pas conformes. L’exemple ci-dessus les pose :
+
+| Règle | Réglage |
+|---|---|
+| Aucun blocage par adresse IP | `rateLimit: { enabled: false }` (actif par défaut en production) |
+| Révocation en 5 minutes au plus | `session.cookieCache.maxAge: 300` |
+| Réauthentification au-delà de 10 minutes sur les routes Better Auth | `session.freshAge: 600` (24 h par défaut) |
+| Lien de réinitialisation valable 1 h, autres sessions fermées après réinitialisation | `resetPasswordTokenExpiresIn: 3600`, `revokeSessionsOnPasswordReset: true` |
+| Codes de secours chiffrés | `backupCodeOptions.storeBackupCodes: "encrypted"` (stockés en clair par défaut) |
+| Code 2FA par e-mail haché, valable 10 min au plus | `otpOptions: { period: 10, storeOTP: "hashed" }` |
+| Pas d’appareil de confiance | `trustDevice: false` côté client lors de la vérification 2FA (30 jours sinon) |
+| Invitation valable 72 h | `organization({ invitationExpiresIn: 72 * 3600 })` (48 h par défaut) |
+
 ## Ce qui reste à la charge de l’app
 
-- Garder la limite `rateLimit` de Better Auth large (30 requêtes par minute sur la connexion, par exemple). Réglée à 5, elle bloque tous les collègues d’un même bureau dès qu’un seul se trompe plusieurs fois.
-- Transmettre la vraie adresse IP du visiteur derrière le proxy (Traefik, Dokploy) avec `advanced.ipAddress.ipAddressHeaders`. Sans adresse, Better Auth regroupe tous les visiteurs dans un seul compteur ; le compteur par IP de ce paquet, lui, ne s’applique simplement pas.
-- Les règles du référentiel que ce paquet ne couvre pas encore : 2FA obligatoire côté serveur, réauthentification avant une action sensible, notifications par e-mail, en-têtes HTTP.
+- 2FA obligatoire pour les comptes internes, contrôlée côté serveur dans chaque fonction protégée.
+- Réauthentification avant une action sensible hors routes Better Auth (§6).
+- Notifications par e-mail : nouvel appareil, changement de mot de passe, d’e-mail ou de 2FA (§7).
+- En-têtes HTTP `Content-Security-Policy` et `X-Content-Type-Options` (§8).
 - Les mots de passe déjà enregistrés : les règles s’appliquent quand un mot de passe est choisi, pas à la connexion.
 
 ## Comportements à connaître
 
-- **Session :** une session plus vieille que 7 jours est refusée à sa prochaine prolongation (au plus une heure après), puis l’utilisateur se reconnecte.
-- **Tentatives :** les essais sur une adresse e-mail inconnue sont comptés comme les autres, pour ne pas révéler l’existence d’un compte. Un tiers qui connaît une adresse peut la faire bloquer 15 minutes ; la réinitialisation du mot de passe la débloque. Les collègues qui partagent la même connexion ne sont pas touchés : seuls 50 échecs en 15 minutes depuis la même adresse IP bloquent ce réseau, avec le message « Trop de tentatives échouées depuis votre réseau ».
+- **Session :** à chaque prolongation, l’expiration est ramenée au plus à la connexion + 7 jours. La session s’arrête donc à 7 jours pile, même si l’utilisateur est actif, puis il se reconnecte.
+- **Tentatives :** les essais sur une adresse e-mail inconnue sont comptés comme les autres, pour ne pas révéler l’existence d’un compte. Un tiers qui connaît une adresse peut la faire bloquer 15 minutes ; la réinitialisation du mot de passe la débloque. Aucune adresse IP n’est jamais bloquée : les collègues qui partagent la même connexion ne sont pas touchés.
+- **Envois d’e-mails :** la 4e demande en 10 minutes pour la même adresse reçoit une erreur 429 « Trop de demandes pour cette adresse e-mail » et aucun e-mail ne part. La réponse est la même que le compte existe ou non.
 - **Fuites :** seuls les 5 premiers caractères de l’empreinte SHA-1 sont envoyés à Pwned Passwords. Si le service ne répond pas, le mot de passe est accepté après le contrôle de la liste locale.
+
+## Changements
+
+- **0.4.0** — Alignement sur le référentiel v2.3 : suppression de la limite par adresse IP de `tentativesEnerlia` (options `echecsParIp` et `fenetreIpMs` retirées), nouveau plugin `envoisEmailEnerlia` (3 e-mails en 10 minutes par adresse), README : `rateLimit` désactivé et réglages Better Auth à poser.
+- **0.3.0** — Longueur minimale du mot de passe portée à 14 caractères.
+- **0.2.0** — Le blocage d’un compte ne gêne plus les collègues du même réseau.
 
 ## Développement
 

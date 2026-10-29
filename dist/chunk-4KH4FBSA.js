@@ -1,14 +1,17 @@
 import {
+  SCHEMA_TENTATIVE,
+  stockageBase,
+  utilisateurEn2fa
+} from "./chunk-JFKTIXMC.js";
+import {
   codeErreur,
   estErreurApi
 } from "./chunk-NCGPCWYH.js";
 
 // src/tentatives.ts
-import { APIError, createAuthMiddleware, getIp, getSessionFromCtx } from "better-auth/api";
-var MODELE_TENTATIVE = "enerliaTentative";
+import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 var MESSAGE_COMPTE_BLOQUE = "Trop de tentatives. R\xE9essayez dans 15 minutes ou r\xE9initialisez votre mot de passe.";
 var MESSAGE_DELAI = "Trop de tentatives rapproch\xE9es. Patientez quelques secondes avant de r\xE9essayer.";
-var MESSAGE_RESEAU_BLOQUE = "Trop de tentatives \xE9chou\xE9es depuis votre r\xE9seau. R\xE9essayez dans quelques minutes.";
 var CHEMINS_MOT_DE_PASSE = ["/sign-in/email"];
 var CHEMINS_2FA = ["/two-factor/verify-totp", "/two-factor/verify-otp", "/two-factor/verify-backup-code"];
 var CHEMIN_LIEN_REINITIALISATION = "/reset-password";
@@ -16,63 +19,11 @@ var CHEMINS_REINITIALISATION_PAR_EMAIL = /* @__PURE__ */ new Set(["/email-otp/re
 var CHEMINS_CHANGEMENT_CONNECTE = /* @__PURE__ */ new Set(["/change-password", "/set-password"]);
 var CHEMIN_ADMIN = "/admin/set-user-password";
 var ERREURS_NON_COMPTEES = /* @__PURE__ */ new Set(["INVALID_TWO_FACTOR_COOKIE"]);
-function stockageMemoire() {
-  const donnees = /* @__PURE__ */ new Map();
-  return {
-    donnees,
-    async lire(cle) {
-      const etat = donnees.get(cle);
-      return etat ? { ...etat } : null;
-    },
-    async ecrire(cle, etat) {
-      donnees.set(cle, { ...etat });
-    },
-    async effacer(cle) {
-      donnees.delete(cle);
-    }
-  };
-}
-function stockageBase(adaptateur) {
-  const ou = (cle) => [{ field: "cle", value: cle }];
-  const lire = async (cle) => {
-    const ligne = await adaptateur.findOne({ model: MODELE_TENTATIVE, where: ou(cle) });
-    if (!ligne) return null;
-    return {
-      echecs: Number(ligne.echecs) || 0,
-      dernierEchec: Number(ligne.dernierEchec) || 0,
-      bloqueJusqua: Number(ligne.bloqueJusqua) || 0
-    };
-  };
-  return {
-    lire,
-    async ecrire(cle, etat) {
-      const existant = await adaptateur.findOne({ model: MODELE_TENTATIVE, where: ou(cle) });
-      if (existant) await adaptateur.update({ model: MODELE_TENTATIVE, where: ou(cle), update: { ...etat } });
-      else await adaptateur.create({ model: MODELE_TENTATIVE, data: { cle, ...etat } });
-    },
-    async effacer(cle) {
-      await adaptateur.delete({ model: MODELE_TENTATIVE, where: ou(cle) });
-    }
-  };
-}
 function cleMotDePasse(email) {
   return `mdp:${email.trim().toLowerCase()}`;
 }
 function cle2fa(userId) {
   return `2fa:${userId}`;
-}
-function cleIp(ip) {
-  return `ip:${ip}`;
-}
-function apresEchecIp(etat, maintenant, fenetreMs = 15 * 60 * 1e3) {
-  if (!etat || etat.bloqueJusqua <= maintenant) {
-    return { echecs: 1, dernierEchec: maintenant, bloqueJusqua: maintenant + fenetreMs };
-  }
-  return { echecs: etat.echecs + 1, dernierEchec: maintenant, bloqueJusqua: etat.bloqueJusqua };
-}
-function attenteIp(etat, maintenant, seuil = 50) {
-  if (!etat || etat.bloqueJusqua <= maintenant || etat.echecs < seuil) return 0;
-  return etat.bloqueJusqua - maintenant;
 }
 function delaiAvantEssai(echecs, options = {}) {
   const palier = options.echecsAvantDelai ?? 3;
@@ -97,34 +48,9 @@ function refusAvantEssai(etat, maintenant, options = {}) {
   const attente = etat.dernierEchec + delaiAvantEssai(etat.echecs, options) - maintenant;
   return attente > 0 ? { raison: "delai", attenteMs: attente } : null;
 }
-async function utilisateurEn2fa(ctx) {
-  try {
-    const session = await getSessionFromCtx(ctx);
-    if (session?.user?.id) return session.user.id;
-  } catch {
-  }
-  try {
-    const cookie = ctx.context.createAuthCookie("two_factor");
-    const jeton = await ctx.getSignedCookie(cookie.name, ctx.context.secret);
-    if (!jeton) return null;
-    const verification = await ctx.context.internalAdapter.findVerificationValue(jeton);
-    return verification?.value ?? null;
-  } catch {
-    return null;
-  }
-}
 function emailDuCorps(ctx) {
   const email = ctx.body?.email;
   return typeof email === "string" && email.trim() ? email : null;
-}
-function adresseIp(ctx) {
-  const source = ctx.request ?? ctx.headers;
-  if (!source) return null;
-  try {
-    return getIp(source, ctx.context.options) ?? null;
-  } catch {
-    return null;
-  }
 }
 async function utilisateurConnecte(ctx) {
   try {
@@ -149,8 +75,6 @@ async function utilisateurDuLien(ctx) {
 var tentativesEnerlia = (options = {}) => {
   const cheminsMotDePasse = new Set(options.cheminsMotDePasse ?? CHEMINS_MOT_DE_PASSE);
   const chemins2fa = new Set(options.chemins2fa ?? CHEMINS_2FA);
-  const seuilIp = options.echecsParIp === false ? null : options.echecsParIp ?? 50;
-  const fenetreIp = options.fenetreIpMs ?? 15 * 60 * 1e3;
   let stockageParDefaut = null;
   const stockage = (ctx) => {
     if (options.stockage) return options.stockage;
@@ -192,17 +116,6 @@ var tentativesEnerlia = (options = {}) => {
           matcher: (ctx) => !!ctx.path && (cheminsMotDePasse.has(ctx.path) || chemins2fa.has(ctx.path)),
           handler: createAuthMiddleware(async (ctx) => {
             const c = ctx;
-            const ip = seuilIp === null ? null : adresseIp(c);
-            if (ip) {
-              const attente = attenteIp(await stockage(c).lire(cleIp(ip)), Date.now(), seuilIp ?? void 0);
-              if (attente > 0) {
-                throw new APIError(
-                  "TOO_MANY_REQUESTS",
-                  { message: MESSAGE_RESEAU_BLOQUE, code: "TROP_D_ECHECS_DEPUIS_CE_RESEAU" },
-                  { "Retry-After": String(Math.max(1, Math.ceil(attente / 1e3))) }
-                );
-              }
-            }
             const cle = await cleAvant(c);
             if (!cle) return;
             const refus = refusAvantEssai(await stockage(c).lire(cle), Date.now(), options);
@@ -242,11 +155,6 @@ var tentativesEnerlia = (options = {}) => {
             if (estErreurApi(resultat)) {
               const code = codeErreur(resultat);
               if (resultat.statusCode !== 401 || code && ERREURS_NON_COMPTEES.has(code)) return;
-              const ip = seuilIp === null ? null : adresseIp(c);
-              if (ip) {
-                const etatIp = await stockage(c).lire(cleIp(ip));
-                await stockage(c).ecrire(cleIp(ip), apresEchecIp(etatIp, Date.now(), fenetreIp));
-              }
               const cle = await cleAvant(c);
               if (!cle) return;
               const etat = await stockage(c).lire(cle);
@@ -264,33 +172,16 @@ var tentativesEnerlia = (options = {}) => {
         }
       ]
     },
-    ...options.stockage ? {} : {
-      schema: {
-        [MODELE_TENTATIVE]: {
-          fields: {
-            cle: { type: "string", required: true, unique: true },
-            echecs: { type: "number", required: true },
-            dernierEchec: { type: "number", required: true },
-            bloqueJusqua: { type: "number", required: true }
-          }
-        }
-      }
-    }
+    ...options.stockage ? {} : { schema: SCHEMA_TENTATIVE }
   };
   return plugin;
 };
 
 export {
-  MODELE_TENTATIVE,
   MESSAGE_COMPTE_BLOQUE,
   MESSAGE_DELAI,
-  MESSAGE_RESEAU_BLOQUE,
-  stockageMemoire,
   cleMotDePasse,
   cle2fa,
-  cleIp,
-  apresEchecIp,
-  attenteIp,
   delaiAvantEssai,
   apresEchec,
   refusAvantEssai,

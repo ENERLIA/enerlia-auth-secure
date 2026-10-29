@@ -2,7 +2,7 @@ import type { BetterAuthPlugin } from "better-auth";
 
 /**
  * Durée des sessions selon le référentiel Enerlia « Sécurité des comptes et des
- * connexions » v2.0, section 5 :
+ * connexions » v2.3, section 5 :
  * - la session expire après 48 h sans activité ;
  * - elle dure au plus 7 jours après la connexion, même si l'utilisateur reste
  *   actif. Il doit alors se reconnecter.
