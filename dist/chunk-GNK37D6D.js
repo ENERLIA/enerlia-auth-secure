@@ -4,10 +4,11 @@ import {
 } from "./chunk-NCGPCWYH.js";
 
 // src/tentatives.ts
-import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
+import { APIError, createAuthMiddleware, getIp, getSessionFromCtx } from "better-auth/api";
 var MODELE_TENTATIVE = "enerliaTentative";
 var MESSAGE_COMPTE_BLOQUE = "Trop de tentatives. R\xE9essayez dans 15 minutes ou r\xE9initialisez votre mot de passe.";
 var MESSAGE_DELAI = "Trop de tentatives rapproch\xE9es. Patientez quelques secondes avant de r\xE9essayer.";
+var MESSAGE_RESEAU_BLOQUE = "Trop de tentatives \xE9chou\xE9es depuis votre r\xE9seau. R\xE9essayez dans quelques minutes.";
 var CHEMINS_MOT_DE_PASSE = ["/sign-in/email"];
 var CHEMINS_2FA = ["/two-factor/verify-totp", "/two-factor/verify-otp", "/two-factor/verify-backup-code"];
 var CHEMIN_LIEN_REINITIALISATION = "/reset-password";
@@ -60,6 +61,19 @@ function cleMotDePasse(email) {
 function cle2fa(userId) {
   return `2fa:${userId}`;
 }
+function cleIp(ip) {
+  return `ip:${ip}`;
+}
+function apresEchecIp(etat, maintenant, fenetreMs = 15 * 60 * 1e3) {
+  if (!etat || etat.bloqueJusqua <= maintenant) {
+    return { echecs: 1, dernierEchec: maintenant, bloqueJusqua: maintenant + fenetreMs };
+  }
+  return { echecs: etat.echecs + 1, dernierEchec: maintenant, bloqueJusqua: etat.bloqueJusqua };
+}
+function attenteIp(etat, maintenant, seuil = 50) {
+  if (!etat || etat.bloqueJusqua <= maintenant || etat.echecs < seuil) return 0;
+  return etat.bloqueJusqua - maintenant;
+}
 function delaiAvantEssai(echecs, options = {}) {
   const palier = options.echecsAvantDelai ?? 3;
   if (echecs < palier) return 0;
@@ -103,6 +117,15 @@ function emailDuCorps(ctx) {
   const email = ctx.body?.email;
   return typeof email === "string" && email.trim() ? email : null;
 }
+function adresseIp(ctx) {
+  const source = ctx.request ?? ctx.headers;
+  if (!source) return null;
+  try {
+    return getIp(source, ctx.context.options) ?? null;
+  } catch {
+    return null;
+  }
+}
 async function utilisateurConnecte(ctx) {
   try {
     const session = await getSessionFromCtx(ctx);
@@ -126,6 +149,8 @@ async function utilisateurDuLien(ctx) {
 var tentativesEnerlia = (options = {}) => {
   const cheminsMotDePasse = new Set(options.cheminsMotDePasse ?? CHEMINS_MOT_DE_PASSE);
   const chemins2fa = new Set(options.chemins2fa ?? CHEMINS_2FA);
+  const seuilIp = options.echecsParIp === false ? null : options.echecsParIp ?? 50;
+  const fenetreIp = options.fenetreIpMs ?? 15 * 60 * 1e3;
   let stockageParDefaut = null;
   const stockage = (ctx) => {
     if (options.stockage) return options.stockage;
@@ -167,6 +192,17 @@ var tentativesEnerlia = (options = {}) => {
           matcher: (ctx) => !!ctx.path && (cheminsMotDePasse.has(ctx.path) || chemins2fa.has(ctx.path)),
           handler: createAuthMiddleware(async (ctx) => {
             const c = ctx;
+            const ip = seuilIp === null ? null : adresseIp(c);
+            if (ip) {
+              const attente = attenteIp(await stockage(c).lire(cleIp(ip)), Date.now(), seuilIp ?? void 0);
+              if (attente > 0) {
+                throw new APIError(
+                  "TOO_MANY_REQUESTS",
+                  { message: MESSAGE_RESEAU_BLOQUE, code: "TROP_D_ECHECS_DEPUIS_CE_RESEAU" },
+                  { "Retry-After": String(Math.max(1, Math.ceil(attente / 1e3))) }
+                );
+              }
+            }
             const cle = await cleAvant(c);
             if (!cle) return;
             const refus = refusAvantEssai(await stockage(c).lire(cle), Date.now(), options);
@@ -206,6 +242,11 @@ var tentativesEnerlia = (options = {}) => {
             if (estErreurApi(resultat)) {
               const code = codeErreur(resultat);
               if (resultat.statusCode !== 401 || code && ERREURS_NON_COMPTEES.has(code)) return;
+              const ip = seuilIp === null ? null : adresseIp(c);
+              if (ip) {
+                const etatIp = await stockage(c).lire(cleIp(ip));
+                await stockage(c).ecrire(cleIp(ip), apresEchecIp(etatIp, Date.now(), fenetreIp));
+              }
               const cle = await cleAvant(c);
               if (!cle) return;
               const etat = await stockage(c).lire(cle);
@@ -243,9 +284,13 @@ export {
   MODELE_TENTATIVE,
   MESSAGE_COMPTE_BLOQUE,
   MESSAGE_DELAI,
+  MESSAGE_RESEAU_BLOQUE,
   stockageMemoire,
   cleMotDePasse,
   cle2fa,
+  cleIp,
+  apresEchecIp,
+  attenteIp,
   delaiAvantEssai,
   apresEchec,
   refusAvantEssai,

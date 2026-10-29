@@ -2,7 +2,7 @@ import * as better_call from 'better-call';
 import { OptionsDureeSession } from './session.js';
 export { SESSION_DUREE_MAX_MS, SESSION_INACTIVITE_S, SESSION_PROLONGATION_S, creerLimiteDureeSession, dureeSessionEnerlia, limiterDureeSession, plafonnerExpiration, sessionEnerlia } from './session.js';
 import { OptionsTentatives } from './tentatives.js';
-export { EtatTentatives, MESSAGE_COMPTE_BLOQUE, MESSAGE_DELAI, MODELE_TENTATIVE, StockageTentatives, apresEchec, cle2fa, cleMotDePasse, delaiAvantEssai, refusAvantEssai, stockageMemoire, tentativesEnerlia } from './tentatives.js';
+export { EtatTentatives, MESSAGE_COMPTE_BLOQUE, MESSAGE_DELAI, MESSAGE_RESEAU_BLOQUE, MODELE_TENTATIVE, StockageTentatives, apresEchec, apresEchecIp, attenteIp, cle2fa, cleIp, cleMotDePasse, delaiAvantEssai, refusAvantEssai, stockageMemoire, tentativesEnerlia } from './tentatives.js';
 import { OptionsMotDePasse } from './mot-de-passe.js';
 export { CodeRefusMotDePasse, MESSAGES_MOT_DE_PASSE, ROUTES_MOT_DE_PASSE, RouteMotDePasse, fragmentsPersonnels, motDePasseEnerlia, verifierMotDePasse } from './mot-de-passe.js';
 
@@ -27,37 +27,6 @@ type OptionsSecuriteEnerlia = {
  * Penser aussi à `session: sessionEnerlia` dans la configuration Better Auth.
  */
 declare function securiteEnerlia(options?: OptionsSecuriteEnerlia): ({
-    id: "enerlia-mot-de-passe";
-    init(contexte: {
-        password: {
-            [cle: string]: unknown;
-            hash: (motDePasse: string) => Promise<string>;
-            verify: (donnees: {
-                hash: string;
-                password: string;
-            }) => Promise<boolean>;
-        };
-        appName?: string;
-    }): {
-        context: {
-            password: {
-                hash(motDePasse: string): Promise<string>;
-                verify(donnees: {
-                    hash: string;
-                    password: string;
-                }): Promise<boolean>;
-            };
-        };
-    };
-    hooks: {
-        before: {
-            matcher: (ctx: {
-                path?: string;
-            }) => boolean;
-            handler: better_call.Middleware<better_call.MiddlewareOptions, (inputContext: better_call.MiddlewareInputContext<better_call.MiddlewareOptions>) => Promise<void>>;
-        }[];
-    };
-} | {
     id: "enerlia-duree-session";
     init: () => {
         options: {
@@ -109,6 +78,37 @@ declare function securiteEnerlia(options?: OptionsSecuriteEnerlia): ({
             handler: better_call.Middleware<better_call.MiddlewareOptions, (inputContext: better_call.MiddlewareInputContext<better_call.MiddlewareOptions>) => Promise<void>>;
         }[];
         after: {
+            matcher: (ctx: {
+                path?: string;
+            }) => boolean;
+            handler: better_call.Middleware<better_call.MiddlewareOptions, (inputContext: better_call.MiddlewareInputContext<better_call.MiddlewareOptions>) => Promise<void>>;
+        }[];
+    };
+} | {
+    id: "enerlia-mot-de-passe";
+    init(contexte: {
+        password: {
+            [cle: string]: unknown;
+            hash: (motDePasse: string) => Promise<string>;
+            verify: (donnees: {
+                hash: string;
+                password: string;
+            }) => Promise<boolean>;
+        };
+        appName?: string;
+    }): {
+        context: {
+            password: {
+                hash(motDePasse: string): Promise<string>;
+                verify(donnees: {
+                    hash: string;
+                    password: string;
+                }): Promise<boolean>;
+            };
+        };
+    };
+    hooks: {
+        before: {
             matcher: (ctx: {
                 path?: string;
             }) => boolean;

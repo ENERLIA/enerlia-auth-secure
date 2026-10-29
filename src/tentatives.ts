@@ -1,5 +1,5 @@
 import type { BetterAuthPlugin } from "better-auth";
-import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
+import { APIError, createAuthMiddleware, getIp, getSessionFromCtx } from "better-auth/api";
 import { codeErreur, estErreurApi } from "./erreurs";
 
 /**
@@ -9,8 +9,12 @@ import { codeErreur, estErreurApi } from "./erreurs";
  * - blocage temporaire du compte après 10 échecs consécutifs (15 min), levé
  *   aussi par une réinitialisation ou un changement du mot de passe ;
  * - même protection pour les codes 2FA (TOTP, code par e-mail, codes de secours) ;
- * - compteur rattaché au compte, en complément de la limite par adresse IP
- *   de Better Auth (`rateLimit`), qui reste à configurer dans l'application.
+ * - le blocage s'applique au compte visé uniquement : un collègue qui partage
+ *   la même connexion se connecte normalement ;
+ * - en complément, une limite par adresse IP qui ne compte que les échecs, avec
+ *   un seuil élevé (50 échecs en 15 minutes), contre un attaquant qui essaie de
+ *   nombreux comptes depuis la même adresse. La limite `rateLimit` de Better
+ *   Auth, qui compte toutes les requêtes, doit rester large (voir le README).
  *
  * Les essais sur une adresse inconnue sont comptés et traités comme les autres :
  * la réponse ne révèle jamais si un compte existe.
@@ -21,7 +25,10 @@ export type EtatTentatives = {
   echecs: number;
   /** Date du dernier échec (ms depuis l'époque Unix). */
   dernierEchec: number;
-  /** Fin du blocage (ms depuis l'époque Unix), 0 si le compte n'est pas bloqué. */
+  /**
+   * Compte : fin du blocage (ms depuis l'époque Unix), 0 s'il n'est pas bloqué.
+   * Adresse IP : fin de la fenêtre de comptage en cours.
+   */
   bloqueJusqua: number;
 };
 
@@ -52,6 +59,13 @@ export type OptionsTentatives = {
   delaiMaxMs?: number;
   /** Au-delà de cette durée sans échec, le compteur repart de zéro. 24 h par défaut. */
   oubliApresMs?: number;
+  /**
+   * Échecs tolérés par adresse IP sur la fenêtre `fenetreIpMs`, tous comptes
+   * confondus. 50 par défaut ; `false` désactive cette limite.
+   */
+  echecsParIp?: number | false;
+  /** Fenêtre de comptage des échecs par adresse IP, en millisecondes. 15 minutes par défaut. */
+  fenetreIpMs?: number;
   /** Routes de connexion par mot de passe dont le corps contient `email`. */
   cheminsMotDePasse?: string[];
   /** Routes de vérification d'un code 2FA. */
@@ -63,6 +77,8 @@ export const MODELE_TENTATIVE = "enerliaTentative";
 export const MESSAGE_COMPTE_BLOQUE =
   "Trop de tentatives. Réessayez dans 15 minutes ou réinitialisez votre mot de passe.";
 export const MESSAGE_DELAI = "Trop de tentatives rapprochées. Patientez quelques secondes avant de réessayer.";
+export const MESSAGE_RESEAU_BLOQUE =
+  "Trop de tentatives échouées depuis votre réseau. Réessayez dans quelques minutes.";
 
 const CHEMINS_MOT_DE_PASSE = ["/sign-in/email"];
 const CHEMINS_2FA = ["/two-factor/verify-totp", "/two-factor/verify-otp", "/two-factor/verify-backup-code"];
@@ -136,6 +152,24 @@ export function cle2fa(userId: string): string {
   return `2fa:${userId}`;
 }
 
+export function cleIp(ip: string): string {
+  return `ip:${ip}`;
+}
+
+/** Nouvel état d'une adresse IP après un échec : compteur sur une fenêtre fixe. */
+export function apresEchecIp(etat: EtatTentatives | null, maintenant: number, fenetreMs = 15 * 60 * 1000): EtatTentatives {
+  if (!etat || etat.bloqueJusqua <= maintenant) {
+    return { echecs: 1, dernierEchec: maintenant, bloqueJusqua: maintenant + fenetreMs };
+  }
+  return { echecs: etat.echecs + 1, dernierEchec: maintenant, bloqueJusqua: etat.bloqueJusqua };
+}
+
+/** Temps d'attente imposé à une adresse IP, ou 0 si elle peut encore essayer. */
+export function attenteIp(etat: EtatTentatives | null, maintenant: number, seuil = 50): number {
+  if (!etat || etat.bloqueJusqua <= maintenant || etat.echecs < seuil) return 0;
+  return etat.bloqueJusqua - maintenant;
+}
+
 /** Délai à respecter avant l'essai suivant, selon le nombre d'échecs consécutifs. */
 export function delaiAvantEssai(
   echecs: number,
@@ -183,11 +217,14 @@ type ContexteRequete = {
   path?: string;
   body?: Record<string, unknown>;
   query?: Record<string, unknown>;
+  headers?: Headers;
+  request?: Request;
   context: {
     returned?: unknown;
     newSession?: { user?: { id?: string } } | null;
     secret: string;
     adapter: unknown;
+    options: Parameters<typeof getIp>[1];
     internalAdapter: {
       findVerificationValue(identifier: string): Promise<{ value: string; expiresAt?: Date | string } | null>;
       findUserById(id: string): Promise<{ id?: string; email?: string } | null>;
@@ -221,6 +258,21 @@ function emailDuCorps(ctx: ContexteRequete): string | null {
   return typeof email === "string" && email.trim() ? email : null;
 }
 
+/**
+ * Adresse IP du visiteur, lue comme Better Auth (`advanced.ipAddress`).
+ * Une adresse inconnue n'est jamais regroupée avec les autres : sans adresse,
+ * la limite par IP ne s'applique pas, pour ne pas bloquer tous les utilisateurs.
+ */
+function adresseIp(ctx: ContexteRequete): string | null {
+  const source = ctx.request ?? ctx.headers;
+  if (!source) return null;
+  try {
+    return getIp(source, ctx.context.options) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function utilisateurConnecte(ctx: ContexteRequete): Promise<{ id?: string; email?: string } | null> {
   try {
     const session = await getSessionFromCtx(ctx as never);
@@ -248,6 +300,8 @@ async function utilisateurDuLien(ctx: ContexteRequete): Promise<{ id?: string; e
 export const tentativesEnerlia = (options: OptionsTentatives = {}) => {
   const cheminsMotDePasse = new Set(options.cheminsMotDePasse ?? CHEMINS_MOT_DE_PASSE);
   const chemins2fa = new Set(options.chemins2fa ?? CHEMINS_2FA);
+  const seuilIp = options.echecsParIp === false ? null : (options.echecsParIp ?? 50);
+  const fenetreIp = options.fenetreIpMs ?? 15 * 60 * 1000;
   let stockageParDefaut: StockageTentatives | null = null;
   const stockage = (ctx: ContexteRequete): StockageTentatives => {
     if (options.stockage) return options.stockage;
@@ -299,6 +353,17 @@ export const tentativesEnerlia = (options: OptionsTentatives = {}) => {
             !!ctx.path && (cheminsMotDePasse.has(ctx.path) || chemins2fa.has(ctx.path)),
           handler: createAuthMiddleware(async (ctx) => {
             const c = ctx as unknown as ContexteRequete;
+            const ip = seuilIp === null ? null : adresseIp(c);
+            if (ip) {
+              const attente = attenteIp(await stockage(c).lire(cleIp(ip)), Date.now(), seuilIp ?? undefined);
+              if (attente > 0) {
+                throw new APIError(
+                  "TOO_MANY_REQUESTS",
+                  { message: MESSAGE_RESEAU_BLOQUE, code: "TROP_D_ECHECS_DEPUIS_CE_RESEAU" },
+                  { "Retry-After": String(Math.max(1, Math.ceil(attente / 1000))) },
+                );
+              }
+            }
             const cle = await cleAvant(c);
             if (!cle) return;
             const refus = refusAvantEssai(await stockage(c).lire(cle), Date.now(), options);
@@ -342,6 +407,11 @@ export const tentativesEnerlia = (options: OptionsTentatives = {}) => {
             if (estErreurApi(resultat)) {
               const code = codeErreur(resultat);
               if (resultat.statusCode !== 401 || (code && ERREURS_NON_COMPTEES.has(code))) return;
+              const ip = seuilIp === null ? null : adresseIp(c);
+              if (ip) {
+                const etatIp = await stockage(c).lire(cleIp(ip));
+                await stockage(c).ecrire(cleIp(ip), apresEchecIp(etatIp, Date.now(), fenetreIp));
+              }
               const cle = await cleAvant(c);
               if (!cle) return;
               const etat = await stockage(c).lire(cle);

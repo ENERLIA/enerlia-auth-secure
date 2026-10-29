@@ -20,15 +20,19 @@ import {
 import {
   MESSAGE_COMPTE_BLOQUE,
   MESSAGE_DELAI,
+  MESSAGE_RESEAU_BLOQUE,
   MODELE_TENTATIVE,
   apresEchec,
+  apresEchecIp,
+  attenteIp,
   cle2fa,
+  cleIp,
   cleMotDePasse,
   delaiAvantEssai,
   refusAvantEssai,
   stockageMemoire,
   tentativesEnerlia
-} from "./chunk-UFMUNCGM.js";
+} from "./chunk-GNK37D6D.js";
 import "./chunk-NCGPCWYH.js";
 
 // src/index.ts
@@ -43,6 +47,7 @@ export {
   MESSAGES_MOT_DE_PASSE,
   MESSAGE_COMPTE_BLOQUE,
   MESSAGE_DELAI,
+  MESSAGE_RESEAU_BLOQUE,
   MODELE_TENTATIVE,
   MOTS_DE_PASSE_COURANTS,
   ROUTES_MOT_DE_PASSE,
@@ -50,7 +55,10 @@ export {
   SESSION_INACTIVITE_S,
   SESSION_PROLONGATION_S,
   apresEchec,
+  apresEchecIp,
+  attenteIp,
   cle2fa,
+  cleIp,
   cleMotDePasse,
   creerLimiteDureeSession,
   delaiAvantEssai,
