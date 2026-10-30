@@ -200,6 +200,9 @@ var motDePasseEnerlia = (options = {}) => {
                 if (estErreurApi(erreur) && erreur.statusCode === 500 && messageErreur(erreur).startsWith("Failed to check password")) {
                   return original.hash(normalise);
                 }
+                if (!estErreurApi(erreur) && messageErreur(erreur).includes("No auth context found")) {
+                  return original.hash(normalise);
+                }
                 throw erreur;
               }
             },

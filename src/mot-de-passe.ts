@@ -179,6 +179,12 @@ export const motDePasseEnerlia = (options: OptionsMotDePasse = {}) => {
                 if (estErreurApi(erreur) && erreur.statusCode === 500 && messageErreur(erreur).startsWith("Failed to check password")) {
                   return original.hash(normalise);
                 }
+                // Hachage hors d'une requête Better Auth (script d'initialisation, préparation de
+                // tests) : le plugin officiel ne trouve pas la route et lève une erreur. Aucun
+                // utilisateur ne choisit alors de mot de passe : on hache sans contrôle des fuites.
+                if (!estErreurApi(erreur) && messageErreur(erreur as never).includes("No auth context found")) {
+                  return original.hash(normalise);
+                }
                 throw erreur;
               }
             },

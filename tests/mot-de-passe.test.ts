@@ -70,6 +70,15 @@ describe("règles de mot de passe : de bout en bout avec Better Auth", () => {
     expect(await resultat(inscrire(auth, "cheval agrafeur"))).toBe("ok");
   });
 
+  it("hache hors d'une requête Better Auth (script, préparation de tests) sans contrôle des fuites", async () => {
+    const appels = simulerPwned(["fuite tres connue"]);
+    const auth = creerAuth(nouvelleBase(), { plugins: [motDePasseEnerlia()] });
+    const contexte = await auth.$context;
+    const hash = await contexte.password.hash("fuite tres connue");
+    expect(await contexte.password.verify({ hash, password: "fuite tres connue" })).toBe(true);
+    expect(appels).toHaveLength(0);
+  });
+
   it("reconnaît un mot de passe accentué saisi sous une autre forme Unicode", async () => {
     simulerPwned();
     const auth = creerAuth(nouvelleBase(), { plugins: [motDePasseEnerlia()] });

@@ -155,6 +155,7 @@ controleConnexionEnerlia({
 
 ## Changements
 
+- **0.5.2** — `motDePasseEnerlia` : un mot de passe haché hors d’une requête Better Auth (script d’initialisation, préparation de tests) ne fait plus échouer l’appel ; le contrôle des fuites ne s’applique qu’aux routes.
 - **0.5.1** — `controleConnexionEnerlia` contrôle aussi le mot de passe choisi à la création du compte : un nouvel invité n’est pas déconnecté.
 - **0.5.0** — Nouveau plugin `controleConnexionEnerlia` : contrôle à la connexion des mots de passe déjà enregistrés, déconnexion unique des comptes jamais contrôlés. Fonction `estMotDePasseCompromis`.
 - **0.4.0** — Alignement sur le référentiel v2.3 : suppression de la limite par adresse IP de `tentativesEnerlia` (options `echecsParIp` et `fenetreIpMs` retirées), nouveau plugin `envoisEmailEnerlia` (3 e-mails en 10 minutes par adresse), README : `rateLimit` désactivé et réglages Better Auth à poser.

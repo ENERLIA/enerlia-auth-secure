@@ -1,6 +1,6 @@
 {
   "name": "enerlia-auth-secure",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Plugins Better Auth qui appliquent le référentiel Enerlia « Sécurité des comptes et des connexions ».",
   "private": true,
   "type": "module",
