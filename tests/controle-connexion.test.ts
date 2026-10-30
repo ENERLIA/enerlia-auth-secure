@@ -51,12 +51,20 @@ const connecter = (auth: ReturnType<typeof preparer>["auth"], password: string) 
   auth.api.signInEmail({ body: { email: "a@exemple.fr", password }, asResponse: true });
 
 describe("contrôle à la connexion", () => {
+  it("contrôle le mot de passe choisi à la création du compte", async () => {
+    const { auth, resultats } = preparer();
+    const session = await inscrire(auth, SOLIDE);
+    expect(resultats).toEqual([{ userId: expect.any(String), conforme: true }]);
+    // Compte créé après la mise en place : il n'est pas déconnecté.
+    expect((await auth.api.getSession({ headers: session }))?.user.email).toBe("a@exemple.fr");
+  });
+
   it("signale un mot de passe trop court, sans bloquer la connexion", async () => {
     const { auth, resultats } = preparer();
     await inscrire(auth, FAIBLE);
     const reponse = await connecter(auth, FAIBLE);
     expect(reponse.status).toBe(200);
-    expect(resultats).toEqual([{ userId: expect.any(String), conforme: false }]);
+    expect(resultats.map((r) => r.conforme)).toEqual([false, false]);
   });
 
   it("signale un mot de passe présent dans une fuite connue", async () => {
@@ -77,8 +85,9 @@ describe("contrôle à la connexion", () => {
   it("ne contrôle rien sur un mauvais mot de passe", async () => {
     const { auth, resultats } = preparer();
     await inscrire(auth, SOLIDE);
+    const avant = resultats.length;
     expect((await connecter(auth, "pas le bon mot de passe")).status).toBe(401);
-    expect(resultats).toEqual([]);
+    expect(resultats).toHaveLength(avant);
   });
 
   it("contrôle aussi quand la double authentification attend son code", async () => {
@@ -97,14 +106,15 @@ describe("contrôle à la connexion", () => {
     await inscrire(auth, FAIBLE);
     const session = new Headers({ cookie: cookieDe(await connecter(auth, FAIBLE)) });
     await auth.api.changePassword({ body: { currentPassword: FAIBLE, newPassword: SOLIDE }, headers: session });
-    expect(resultats.map((r) => r.conforme)).toEqual([false, true]);
+    expect(resultats.map((r) => r.conforme)).toEqual([false, false, true]);
   });
 });
 
 describe("déconnexion des comptes jamais contrôlés", () => {
   it("ferme la session d'un utilisateur dont le mot de passe n'a jamais été contrôlé", async () => {
-    const { auth, base } = preparer();
-    const session = await inscrire(auth, SOLIDE); // session ouverte sans contrôle (avant la mise en place)
+    const { auth, base, controles } = preparer();
+    const session = await inscrire(auth, SOLIDE);
+    controles.clear(); // comme une session ouverte avant la mise en place
     expect(await auth.api.getSession({ headers: session })).toBeNull();
     expect(base.session).toHaveLength(0);
     await expect(auth.api.getSession({ headers: session })).resolves.toBeNull();

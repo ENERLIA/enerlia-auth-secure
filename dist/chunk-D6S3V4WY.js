@@ -7,7 +7,7 @@ import {
 
 // src/controle-connexion.ts
 import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
-var CHEMINS_CONNEXION = /* @__PURE__ */ new Set(["/sign-in/email"]);
+var CHEMINS_CONNEXION = /* @__PURE__ */ new Set(["/sign-in/email", "/sign-up/email"]);
 var CHEMINS_NOUVEAU_MOT_DE_PASSE = /* @__PURE__ */ new Map([
   ["/change-password", "newPassword"],
   ["/set-password", "newPassword"]

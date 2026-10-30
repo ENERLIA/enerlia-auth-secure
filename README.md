@@ -142,7 +142,7 @@ controleConnexionEnerlia({
 }),
 ```
 
-- **À la connexion**, après un mot de passe juste, y compris quand la double authentification attend encore son code, le plugin vérifie les règles et les fuites connues, puis appelle `enregistrer`. Rien n’est conservé : seul `conforme` sort. Le contrôle ne bloque jamais la connexion : une erreur ou un service de fuites injoignable laisse passer, la liste locale restant appliquée.
+- **À la connexion** et **à la création du compte** (`/sign-in/email`, `/sign-up/email`), après un mot de passe juste, y compris quand la double authentification attend encore son code, le plugin vérifie les règles et les fuites connues, puis appelle `enregistrer`. Rien n’est conservé : seul `conforme` sort. Le contrôle ne bloque jamais la connexion : une erreur ou un service de fuites injoignable laisse passer, la liste locale restant appliquée.
 - **Après un changement** de mot de passe par un utilisateur connecté (`/change-password`, `/set-password`), le nouveau mot de passe est contrôlé de la même façon : l’app peut lever l’obligation. Après une réinitialisation par lien ou par code, c’est la connexion suivante qui fait le contrôle.
 - **Déconnexion unique** : à la lecture de la session (`/get-session`) ou du jeton Convex (`/convex/token`), si `estControle` répond faux, toutes les sessions de l’utilisateur sont fermées. Il se reconnecte, et sa connexion fait le contrôle. Avec `session.cookieCache`, la déconnexion attend la fin du cache. Un jeton Convex déjà émis reste valable jusqu’à son expiration : l’app doit aussi refuser, dans ses gardes serveur, un compte jamais contrôlé.
 
@@ -155,6 +155,7 @@ controleConnexionEnerlia({
 
 ## Changements
 
+- **0.5.1** — `controleConnexionEnerlia` contrôle aussi le mot de passe choisi à la création du compte : un nouvel invité n’est pas déconnecté.
 - **0.5.0** — Nouveau plugin `controleConnexionEnerlia` : contrôle à la connexion des mots de passe déjà enregistrés, déconnexion unique des comptes jamais contrôlés. Fonction `estMotDePasseCompromis`.
 - **0.4.0** — Alignement sur le référentiel v2.3 : suppression de la limite par adresse IP de `tentativesEnerlia` (options `echecsParIp` et `fenetreIpMs` retirées), nouveau plugin `envoisEmailEnerlia` (3 e-mails en 10 minutes par adresse), README : `rateLimit` désactivé et réglages Better Auth à poser.
 - **0.3.0** — Longueur minimale du mot de passe portée à 14 caractères.

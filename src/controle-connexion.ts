@@ -46,7 +46,8 @@ export type OptionsControleConnexion = Pick<
   delaiFuitesMs?: number;
 };
 
-const CHEMINS_CONNEXION = new Set(["/sign-in/email"]);
+/** Routes où le mot de passe saisi est connu en clair : connexion et création de compte. */
+const CHEMINS_CONNEXION = new Set(["/sign-in/email", "/sign-up/email"]);
 /** Routes où un utilisateur connecté choisit un nouveau mot de passe, et champ du corps concerné. */
 const CHEMINS_NOUVEAU_MOT_DE_PASSE = new Map([
   ["/change-password", "newPassword"],
