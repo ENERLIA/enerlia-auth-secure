@@ -8,6 +8,7 @@ Plugins [Better Auth](https://www.better-auth.com) qui appliquent le référenti
 | `tentativesEnerlia` | §3 Force brute | Compteur d’échecs par compte, pour le mot de passe et les codes 2FA : délai croissant dès le 3e échec, blocage de 15 min au 10e, déblocage par un nouveau mot de passe. Aucun blocage par adresse IP : seul le compte visé est bloqué. |
 | `envoisEmailEnerlia` | §3 Envois d’e-mails | Au plus 3 demandes de lien ou de code par e-mail en 10 minutes pour une même adresse (mot de passe oublié, code par e-mail, code 2FA, lien de connexion, routes de l’app comme le renvoi d’invitation). |
 | `motDePasseEnerlia` | §1 Mot de passe | 14 à 128 caractères sans composition imposée, émojis refusés, accents normalisés, refus des mots de passe courants ou contenant l’e-mail, le nom ou le nom de l’app, contrôle des fuites avec le plugin officiel `haveIBeenPwned` et liste locale si le service ne répond pas. |
+| `controleConnexionEnerlia` | §1 Mot de passe | Contrôle à chaque connexion réussie le mot de passe déjà enregistré, avec les mêmes règles, et transmet le résultat à l’app, qui impose alors le changement. Déconnecte une fois chaque utilisateur jamais contrôlé. Non inclus dans `securiteEnerlia()` : il demande du stockage côté app. |
 
 Testé avec Better Auth 1.6.15 et 1.6.33, à chaque push, par la vérification automatique du dépôt (GitHub Actions).
 
@@ -125,7 +126,25 @@ Ces règles du référentiel existent dans Better Auth, mais ses réglages par d
 - Réauthentification avant une action sensible hors routes Better Auth (§6).
 - Notifications par e-mail : nouvel appareil, changement de mot de passe, d’e-mail ou de 2FA (§7).
 - En-têtes HTTP `Content-Security-Policy` et `X-Content-Type-Options` (§8).
-- Les mots de passe déjà enregistrés : les règles s’appliquent quand un mot de passe est choisi, pas à la connexion.
+- Avec `controleConnexionEnerlia` : stocker le résultat du contrôle, bloquer côté serveur un compte dont le mot de passe est à changer (sauf lecture de son profil et changement de mot de passe), et l’envoyer sur un écran de changement.
+
+## Mots de passe déjà enregistrés
+
+`motDePasseEnerlia` s’applique quand un mot de passe est choisi. Un mot de passe plus ancien (trop court, devenu public dans une fuite) reste utilisable. `controleConnexionEnerlia` le contrôle à la connexion, seul moment où il est connu en clair :
+
+```ts
+controleConnexionEnerlia({
+  nomApplication: "Nom de l’application",
+  // Après chaque connexion réussie, et après le choix d’un nouveau mot de passe par un utilisateur connecté.
+  enregistrer: ({ userId, conforme }) => ctx.runMutation(internal.motDePasse.enregistrerControle, { authId: userId, conforme }),
+  // Faux tant que le mot de passe n’a jamais été contrôlé : ses sessions sont fermées.
+  estControle: (userId) => ctx.runQuery(internal.motDePasse.estControle, { authId: userId }),
+}),
+```
+
+- **À la connexion**, après un mot de passe juste, y compris quand la double authentification attend encore son code, le plugin vérifie les règles et les fuites connues, puis appelle `enregistrer`. Rien n’est conservé : seul `conforme` sort. Le contrôle ne bloque jamais la connexion : une erreur ou un service de fuites injoignable laisse passer, la liste locale restant appliquée.
+- **Après un changement** de mot de passe par un utilisateur connecté (`/change-password`, `/set-password`), le nouveau mot de passe est contrôlé de la même façon : l’app peut lever l’obligation. Après une réinitialisation par lien ou par code, c’est la connexion suivante qui fait le contrôle.
+- **Déconnexion unique** : à la lecture de la session (`/get-session`) ou du jeton Convex (`/convex/token`), si `estControle` répond faux, toutes les sessions de l’utilisateur sont fermées. Il se reconnecte, et sa connexion fait le contrôle. Avec `session.cookieCache`, la déconnexion attend la fin du cache. Un jeton Convex déjà émis reste valable jusqu’à son expiration : l’app doit aussi refuser, dans ses gardes serveur, un compte jamais contrôlé.
 
 ## Comportements à connaître
 
@@ -136,6 +155,7 @@ Ces règles du référentiel existent dans Better Auth, mais ses réglages par d
 
 ## Changements
 
+- **0.5.0** — Nouveau plugin `controleConnexionEnerlia` : contrôle à la connexion des mots de passe déjà enregistrés, déconnexion unique des comptes jamais contrôlés. Fonction `estMotDePasseCompromis`.
 - **0.4.0** — Alignement sur le référentiel v2.3 : suppression de la limite par adresse IP de `tentativesEnerlia` (options `echecsParIp` et `fenetreIpMs` retirées), nouveau plugin `envoisEmailEnerlia` (3 e-mails en 10 minutes par adresse), README : `rateLimit` désactivé et réglages Better Auth à poser.
 - **0.3.0** — Longueur minimale du mot de passe portée à 14 caractères.
 - **0.2.0** — Le blocage d’un compte ne gêne plus les collègues du même réseau.

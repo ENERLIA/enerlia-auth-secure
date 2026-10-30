@@ -2,6 +2,7 @@ export * from "./session";
 export * from "./tentatives";
 export * from "./mot-de-passe";
 export * from "./envois-email";
+export * from "./controle-connexion";
 export { MOTS_DE_PASSE_COURANTS, estMotDePasseCourant } from "./mots-de-passe-courants";
 
 import type { BetterAuthPlugin } from "better-auth";

@@ -1,4 +1,8 @@
 import {
+  controleConnexionEnerlia,
+  estMotDePasseCompromis
+} from "./chunk-CK2QXRWI.js";
+import {
   MESSAGE_TROP_DE_DEMANDES,
   ROUTES_ENVOI_EMAIL,
   cleEnvoi2fa,
@@ -68,10 +72,12 @@ export {
   cleEnvoiEmail,
   cleMotDePasse,
   compterDemande,
+  controleConnexionEnerlia,
   creerLimiteDureeSession,
   delaiAvantEssai,
   dureeSessionEnerlia,
   envoisEmailEnerlia,
+  estMotDePasseCompromis,
   estMotDePasseCourant,
   fragmentsPersonnels,
   limiterDureeSession,

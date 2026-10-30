@@ -6,6 +6,7 @@ import { OptionsMotDePasse } from './mot-de-passe.js';
 export { CodeRefusMotDePasse, MESSAGES_MOT_DE_PASSE, ROUTES_MOT_DE_PASSE, RouteMotDePasse, fragmentsPersonnels, motDePasseEnerlia, verifierMotDePasse } from './mot-de-passe.js';
 import { OptionsEnvoisEmail } from './envois-email.js';
 export { MESSAGE_TROP_DE_DEMANDES, ROUTES_ENVOI_EMAIL, RouteEnvoiEmail, cleEnvoi2fa, cleEnvoiEmail, compterDemande, envoisEmailEnerlia } from './envois-email.js';
+export { OptionsControleConnexion, ResultatControle, controleConnexionEnerlia, estMotDePasseCompromis } from './controle-connexion.js';
 import { BetterAuthPlugin } from 'better-auth';
 export { E as EtatTentatives, M as MODELE_TENTATIVE, S as StockageTentatives, s as stockageMemoire } from './stockage-Cl_cWT5_.js';
 import 'better-call';
