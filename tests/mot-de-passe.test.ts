@@ -23,7 +23,7 @@ function simulerPwned(fuites: string[] = [], panne = false) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("règles de mot de passe : contrôles locaux", () => {
-  const infos = { email: "alice.martin@exemple.fr", nom: "Alice Martin", application: "Adeho Solutions" };
+  const infos = { email: "alice.martin@exemple.fr", nom: "Alice Martin", application: "Atelier Dupont" };
   it.each([
     ["treizelettres", "MOT_DE_PASSE_TROP_COURT"],
     ["x".repeat(129), "MOT_DE_PASSE_TROP_LONG"],
@@ -33,7 +33,7 @@ describe("règles de mot de passe : contrôles locaux", () => {
     ["ababababababab", "MOT_DE_PASSE_COURANT"],
     ["martin et son chien", "MOT_DE_PASSE_PERSONNEL"],
     ["alice.martin2026!", "MOT_DE_PASSE_PERSONNEL"],
-    ["j'aime adeho depuis toujours", "MOT_DE_PASSE_PERSONNEL"],
+    ["j'aime atelier depuis toujours", "MOT_DE_PASSE_PERSONNEL"],
   ])("refuse « %s »", (mdp, code) => {
     expect(verifierMotDePasse(mdp, infos)).toBe(code);
   });

@@ -31,6 +31,37 @@ type OptionsSecuriteEnerlia = {
  * Penser aussi à `session: sessionEnerlia` dans la configuration Better Auth.
  */
 declare function securiteEnerlia(options?: OptionsSecuriteEnerlia): ({
+    id: "enerlia-mot-de-passe";
+    init(contexte: {
+        password: {
+            [cle: string]: unknown;
+            hash: (motDePasse: string) => Promise<string>;
+            verify: (donnees: {
+                hash: string;
+                password: string;
+            }) => Promise<boolean>;
+        };
+        appName?: string;
+    }): {
+        context: {
+            password: {
+                hash(motDePasse: string): Promise<string>;
+                verify(donnees: {
+                    hash: string;
+                    password: string;
+                }): Promise<boolean>;
+            };
+        };
+    };
+    hooks: {
+        before: {
+            matcher: (ctx: {
+                path?: string;
+            }) => boolean;
+            handler: better_call.Middleware<better_call.MiddlewareOptions, (inputContext: better_call.MiddlewareInputContext<better_call.MiddlewareOptions>) => Promise<void>>;
+        }[];
+    };
+} | {
     id: "enerlia-duree-session";
     init: () => {
         options: {
@@ -82,37 +113,6 @@ declare function securiteEnerlia(options?: OptionsSecuriteEnerlia): ({
             handler: better_call.Middleware<better_call.MiddlewareOptions, (inputContext: better_call.MiddlewareInputContext<better_call.MiddlewareOptions>) => Promise<void>>;
         }[];
         after: {
-            matcher: (ctx: {
-                path?: string;
-            }) => boolean;
-            handler: better_call.Middleware<better_call.MiddlewareOptions, (inputContext: better_call.MiddlewareInputContext<better_call.MiddlewareOptions>) => Promise<void>>;
-        }[];
-    };
-} | {
-    id: "enerlia-mot-de-passe";
-    init(contexte: {
-        password: {
-            [cle: string]: unknown;
-            hash: (motDePasse: string) => Promise<string>;
-            verify: (donnees: {
-                hash: string;
-                password: string;
-            }) => Promise<boolean>;
-        };
-        appName?: string;
-    }): {
-        context: {
-            password: {
-                hash(motDePasse: string): Promise<string>;
-                verify(donnees: {
-                    hash: string;
-                    password: string;
-                }): Promise<boolean>;
-            };
-        };
-    };
-    hooks: {
-        before: {
             matcher: (ctx: {
                 path?: string;
             }) => boolean;

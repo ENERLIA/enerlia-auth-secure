@@ -9,7 +9,9 @@ Plugins [Better Auth](https://www.better-auth.com) qui appliquent le référenti
 | `envoisEmailEnerlia` | §3 Envois d’e-mails | Au plus 3 demandes de lien ou de code par e-mail en 10 minutes pour une même adresse (mot de passe oublié, code par e-mail, code 2FA, lien de connexion, routes de l’app comme le renvoi d’invitation). |
 | `motDePasseEnerlia` | §1 Mot de passe | 14 à 128 caractères sans composition imposée, émojis refusés, accents normalisés, refus des mots de passe courants ou contenant l’e-mail, le nom ou le nom de l’app, contrôle des fuites avec le plugin officiel `haveIBeenPwned` et liste locale si le service ne répond pas. |
 
-Testé avec Better Auth 1.6.15 et 1.6.33.
+Testé avec Better Auth 1.6.15 et 1.6.33, à chaque push, par la vérification automatique du dépôt (GitHub Actions).
+
+Le dépôt est public : il ne contient que des règles de sécurité, sans clé, nom de client ni donnée. N’y ajouter aucun élément confidentiel. La mention `"private": true` du `package.json` empêche seulement une publication par erreur sur le registre npm.
 
 ## Installation
 
@@ -22,6 +24,8 @@ npm install github:ENERLIA/enerlia-auth-secure#v0.4.0
 ```
 
 Le fichier de verrouillage (`bun.lock`, `package-lock.json`) retient le commit exact du tag. Le build de l’app installe donc toujours le même code.
+
+Une copie du paquet dans l’app (dossier `vendor/`), utile quand le dépôt était privé, n’est plus nécessaire : l’installation depuis GitHub est plus simple à mettre à jour.
 
 ## Utilisation
 
@@ -135,6 +139,7 @@ Ces règles du référentiel existent dans Better Auth, mais ses réglages par d
 - **0.4.0** — Alignement sur le référentiel v2.3 : suppression de la limite par adresse IP de `tentativesEnerlia` (options `echecsParIp` et `fenetreIpMs` retirées), nouveau plugin `envoisEmailEnerlia` (3 e-mails en 10 minutes par adresse), README : `rateLimit` désactivé et réglages Better Auth à poser.
 - **0.3.0** — Longueur minimale du mot de passe portée à 14 caractères.
 - **0.2.0** — Le blocage d’un compte ne gêne plus les collègues du même réseau.
+- **0.1.0** — Premiers plugins : durée des sessions, tentatives et blocage par compte, règles de mot de passe.
 
 ## Développement
 
@@ -144,3 +149,5 @@ bun run check   # types, tests, build
 ```
 
 Le dossier `dist` est versionné pour l’installation depuis GitHub : relancer `bun run build` avant chaque commit qui modifie `src`. Publier une version : mettre à jour `version` dans `package.json`, puis créer le tag `vX.Y.Z`.
+
+La vérification automatique (`.github/workflows/verifications.yml`) lance les tests avec Better Auth 1.6.15 et 1.6.33, puis contrôle que `dist` correspond bien au code de `src`.
